@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use App\Models\Order; // This connects to Person 1's model
 use Barryvdh\DomPDF\Facade\Pdf;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Facades\Log;
@@ -14,57 +14,36 @@ class InvoiceController extends Controller
     public function generateInvoice($orderId)
     {
         try {
-            // Validate order ID
-            if (!is_numeric($orderId)) {
-                return response()->json(['error' => 'Invalid order ID'], 400);
+            // 1. Pull order directly from the database using Person 1's Model
+            $order = Order::with('payment')->find($orderId);
+            
+            if (!$order) {
+                return response()->json(['error' => 'Order not found in database'], 404);
             }
-            
-            // Fetch order data from Person 1's API
-            // CHANGE THIS URL to match Person 1's server
-            $response = Http::timeout(5)->get('http://localhost:3000/orders/' . $orderId);
-            
-            if ($response->failed()) {
-                if ($response->status() == 404) {
-                    return response()->json(['error' => 'Order not found'], 404);
-                }
-                return response()->json(['error' => 'Order service unavailable'], 503);
-            }
-            
-            $order = $response->json();
-            
-            // Verify order has required fields
-            if (!isset($order['id'], $order['product_name'], $order['amount'])) {
-                return response()->json(['error' => 'Invalid order data'], 500);
-            }
-            
-            // Generate QR Code
+
+            // 2. Generate QR Code
             $trackingUrl = url('/track/' . $orderId);
             $qrCode = base64_encode(QrCode::format('png')->size(100)->generate($trackingUrl));
             
-            // Prepare data for PDF
+            // 3. Prepare data (Converting model to array for the view)
             $data = [
-                'order' => $order,
+                'order' => $order->toArray(),
                 'qrCode' => $qrCode,
                 'company' => [
-                    'name' => 'YOUR STORE NAME',
-                    'address' => '123 Business Street, Nairobi',
+                    'name' => 'Faith\'s Order Management',
+                    'address' => 'Nairobi, Kenya',
                     'phone' => '0712 345 678',
-                    'email' => 'info@yourstore.com'
+                    'email' => 'support@orderflow.co.ke'
                 ]
             ];
             
-            // Generate PDF
+            // 4. Generate and Download PDF
             $pdf = Pdf::loadView('pdf.invoice', $data);
-            
-            // Return PDF for download
             return $pdf->download('invoice-' . $orderId . '.pdf');
             
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            Log::error('PDF generation failed - connection error: ' . $e->getMessage());
-            return response()->json(['error' => 'Cannot connect to order service'], 503);
         } catch (\Exception $e) {
             Log::error('PDF generation failed: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to generate PDF'], 500);
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
         }
     }
     
@@ -72,22 +51,14 @@ class InvoiceController extends Controller
     public function trackOrder($orderId)
     {
         try {
-            // Validate order ID
-            if (!is_numeric($orderId)) {
+            // Pull order directly from the database
+            $order = Order::find($orderId);
+            
+            if (!$order) {
                 return view('tracking.not-found');
             }
             
-            // Fetch order from Person 1's API
-            // CHANGE THIS URL to match Person 1's server
-            $response = Http::timeout(5)->get('http://localhost:3000/orders/' . $orderId);
-            
-            if (!$response->successful()) {
-                return view('tracking.not-found');
-            }
-            
-            $order = $response->json();
-            
-            return view('tracking.show', ['order' => $order]);
+            return view('tracking.show', ['order' => $order->toArray()]);
             
         } catch (\Exception $e) {
             Log::error('Tracking page failed: ' . $e->getMessage());
