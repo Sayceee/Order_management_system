@@ -1,0 +1,41 @@
+[
+  {
+    "sid": "SM177192884427078",
+    "status": "delivered",
+    "to": "+254704949417",
+    "from": "+19134210714",
+    "body": "Test message for my presentation!",
+    "dateCreated": "2026-02-24T10:27:24.270Z",
+    "dateSent": "2026-02-24T10:27:24.270Z",
+    "price": "-0.0075",
+    "priceUnit": "USD",
+    "direction": "outbound-api",
+    "timestamp": "2026-02-24T10:27:24.271Z"
+  },
+  {
+    "sid": "SM1771929479759693",
+    "status": "delivered",
+    "to": "+254704949417",
+    "from": "+19134210714",
+    "body": "✅ Hi Stacy! Order #1 received for $825. We'll notify you when it's confirmed.",
+    "dateCreated": "2026-02-24T10:37:59.759Z",
+    "dateSent": "2026-02-24T10:37:59.759Z",
+    "price": "-0.0075",
+    "priceUnit": "USD",
+    "direction": "outbound-api",
+    "timestamp": "2026-02-24T10:37:59.760Z"
+  },
+  {
+    "sid": "SM1771929936875503",
+    "status": "delivered",
+    "to": "+254700111222",
+    "from": "+19134210714",
+    "body": "✅ Hi John Doe! Order #2 received for $75. We'll notify you when it's confirmed.",
+    "dateCreated": "2026-02-24T10:45:36.875Z",
+    "dateSent": "2026-02-24T10:45:36.875Z",
+    "price": "-0.0075",
+    "priceUnit": "USD",
+    "direction": "outbound-api",
+    "timestamp": "2026-02-24T10:45:36.895Z"
+  }
+]
