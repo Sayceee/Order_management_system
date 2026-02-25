@@ -10,13 +10,11 @@ use App\Models\Payment;
 
 class MpesaController extends Controller
 {
-    // Daraja base URL (Sandbox)
     private function baseUrl(): string
     {
         return 'https://sandbox.safaricom.co.ke';
     }
 
-    // Get OAuth token
     private function accessToken(): string
     {
         $res = Http::withoutVerifying()
@@ -30,19 +28,17 @@ class MpesaController extends Controller
         return $res['access_token'];
     }
 
-    // POST /api/mpesa/stkpush
     public function stkPush(Request $request)
     {
         $data = $request->validate([
             'order_id' => ['required'],
-            'phone' => ['required', 'string'],     // 2547XXXXXXXX
+            'phone' => ['required', 'string'],
             'amount' => ['required', 'numeric', 'min:1'],
         ]);
 
         $timestamp = now()->format('YmdHis');
         $shortcode = env('MPESA_SHORTCODE');
         $passkey = env('MPESA_PASSKEY');
-
         $password = base64_encode($shortcode . $passkey . $timestamp);
 
         $payload = [
@@ -65,6 +61,7 @@ class MpesaController extends Controller
             ->post($this->baseUrl() . '/mpesa/stkpush/v1/processrequest', $payload);
 
         $response = $res->json();
+        
         if (($response['ResponseCode'] ?? null) === "0") {
             Payment::create([
                 'order_id' => (int) $data['order_id'],
@@ -74,16 +71,16 @@ class MpesaController extends Controller
                 'phone' => $data['phone'],
                 'status' => 'pending',
             ]);
+
+            // REDIRECT TO SUCCESS PAGE
+            return redirect()->route('order.success', ['order_id' => $data['order_id']])
+                             ->with('message', 'STK Push sent! Please check your phone.');
         }
 
-        return response()->json([
-            'daraja_status' => $res->status(),
-            'daraja_response' => $response,
-        ], $res->ok() ? 200 : 400);
-    }
+        return back()->withErrors(['message' => 'M-Pesa request failed.']);
+    } // <--- THIS WAS THE MISSING BRACE
 
-    // POST /api/mpesa/callback
-    public function callback(Request $request)
+  public function callback(Request $request)
     {
         $payload = $request->all();
         Log::info('MPESA_CALLBACK_RAW', $payload);
@@ -100,7 +97,6 @@ class MpesaController extends Controller
         $receipt  = $items->get('MpesaReceiptNumber');
         $phone    = $items->get('PhoneNumber');
 
-        // Update the payment record
         $payment = Payment::where('checkout_request_id', $checkoutId)->first();
         
         if ($payment) {
@@ -114,14 +110,11 @@ class MpesaController extends Controller
                 'raw_callback' => $payload,
             ]);
 
-            // --- INTEGRATION BRIDGE ---
             if ((int) $resultCode === 0) {
                 $order = Order::find($payment->order_id);
                 if ($order) {
-                    // 1. Update order to paid so the Invoice reflects it
                     $order->update(['status' => 'paid']);
 
-                    // 2. Trigger Person 3's SMS Service
                     try {
                         Http::post('http://localhost:3000/api/sms/send', [
                             'to' => $phone,
@@ -134,9 +127,6 @@ class MpesaController extends Controller
             }
         }
 
-        return response()->json([
-            "ResultCode" => 0,
-            "ResultDesc" => "Accepted"
-        ]);
+        return response()->json(["ResultCode" => 0, "ResultDesc" => "Accepted"]);
     }
 }
