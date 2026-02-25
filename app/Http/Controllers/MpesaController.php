@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use App\Models\Order;
+use App\Models\Payment;
 
 class MpesaController extends Controller
 {
@@ -62,10 +64,9 @@ class MpesaController extends Controller
             ->acceptJson()
             ->post($this->baseUrl() . '/mpesa/stkpush/v1/processrequest', $payload);
 
-        // record initial request in payments table when Daraja accepts the push
         $response = $res->json();
         if (($response['ResponseCode'] ?? null) === "0") {
-            \App\Models\Payment::create([
+            Payment::create([
                 'order_id' => (int) $data['order_id'],
                 'merchant_request_id' => $response['MerchantRequestID'] ?? null,
                 'checkout_request_id' => $response['CheckoutRequestID'],
@@ -91,20 +92,19 @@ class MpesaController extends Controller
         $resultCode = data_get($stk, 'ResultCode');
         $resultDesc = data_get($stk, 'ResultDesc');
         $checkoutId  = data_get($stk, 'CheckoutRequestID');
-        $merchantId  = data_get($stk, 'MerchantRequestID');
 
-        // CallbackMetadata Items -> key/value pairs
         $items = collect(data_get($stk, 'CallbackMetadata.Item', []))
             ->mapWithKeys(fn($i) => [data_get($i, 'Name') => data_get($i, 'Value')]);
 
         $amount   = $items->get('Amount');
         $receipt  = $items->get('MpesaReceiptNumber');
         $phone    = $items->get('PhoneNumber');
-        $trxDate  = $items->get('TransactionDate');
 
-        // update the payment record that was created during stkPush
-        \App\Models\Payment::where('checkout_request_id', $checkoutId)
-            ->update([
+        // Update the payment record
+        $payment = Payment::where('checkout_request_id', $checkoutId)->first();
+        
+        if ($payment) {
+            $payment->update([
                 'status' => ((int) $resultCode === 0) ? 'paid' : 'failed',
                 'result_code' => (int) $resultCode,
                 'result_desc' => $resultDesc,
@@ -114,37 +114,25 @@ class MpesaController extends Controller
                 'raw_callback' => $payload,
             ]);
 
-        Log::info('MPESA_CALLBACK_PARSED', [
-            'resultCode' => $resultCode,
-            'resultDesc' => $resultDesc,
-            'checkoutId' => $checkoutId,
-            'merchantId' => $merchantId,
-            'amount' => $amount,
-            'receipt' => $receipt,
-            'phone' => $phone,
-            'trxDate' => $trxDate,
-        ]);
+            // --- INTEGRATION BRIDGE ---
+            if ((int) $resultCode === 0) {
+                $order = Order::find($payment->order_id);
+                if ($order) {
+                    // 1. Update order to paid so the Invoice reflects it
+                    $order->update(['status' => 'paid']);
 
-        // simple success / failure handling
-        if ((int) $resultCode === 0) {
-            // the payment went through – mark order as paid via checkoutId lookup
-            Log::info('PAYMENT_SUCCESS', [
-                'checkoutId' => $checkoutId,
-                'receipt'    => $receipt,
-                'amount'     => $amount,
-                'phone'      => $phone,
-            ]);
-        } else {
-            // any non‑zero code means the push failed, was cancelled or timed out
-            Log::warning('PAYMENT_FAILED', [
-                'checkoutId'  => $checkoutId,
-                'resultCode'  => $resultCode,
-                'resultDesc'  => $resultDesc,
-            ]);
+                    // 2. Trigger Person 3's SMS Service
+                    try {
+                        Http::post('http://localhost:3000/api/sms/send', [
+                            'to' => $phone,
+                            'message' => "Payment Verified! KES $amount received for Order #{$order->id}. Track here: " . url("/track/{$order->id}")
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error('SMS Trigger Failed: ' . $e->getMessage());
+                    }
+                }
+            }
         }
-
-        // OPTIONAL: If you stored checkoutId when sending STK push,
-        // you can now mark the order as paid using checkoutId -> order_id mapping.
 
         return response()->json([
             "ResultCode" => 0,
