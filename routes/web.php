@@ -14,3 +14,5 @@ Route::view('/storefront', 'storefront');
 Route::get('/order-success/{order_id}', function ($order_id) {
     return view('order_success', ['order_id' => $order_id]);
 })->name('order.success');
+// If using web routes
+Route::post('/order-now', [OrderController::class, 'store'])->name('orders.store');
