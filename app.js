@@ -4,6 +4,12 @@ require('dotenv').config();
 const express = require('express');
 const { sendSMS, getSMSLog } = require('./mockSMSService');
 
+// Add this near other requires (after mockSMSService require)
+const orderRoutes = require('./routes/orders');
+
+// Add this before app.listen() (after your existing routes)
+app.use('/api/orders', orderRoutes);
+
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -45,4 +51,5 @@ app.get('/api/sms/log', (req, res) => {
 // Start the server
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
+
 });
