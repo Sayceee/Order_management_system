@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
+            $table->string('customer_name')->nullable(); // For the invoice
+            $table->string('product_name')->nullable();
+            $table->decimal('amount', 10, 2); // To match M-Pesa amount
+            $table->string('status')->default('pending'); // pending|paid|failed
             $table->timestamps();
         });
     }

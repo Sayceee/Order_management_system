@@ -1584,3 +1584,5 @@
 #36 {main}
 "} 
 [2026-02-25 08:31:05] local.ERROR: Invoice generation failed: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'order_management_system.orders' doesn't exist (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: Order_management_system, SQL: select * from `orders` where `orders`.`id` = 101 limit 1)  
+[2026-02-25 08:33:58] local.ERROR: Invoice generation failed: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'order_management_system.orders' doesn't exist (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: Order_management_system, SQL: select * from `orders` where `orders`.`id` = 101 limit 1)  
+[2026-02-25 08:34:02] local.ERROR: Invoice generation failed: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'order_management_system.orders' doesn't exist (Connection: mysql, Host: 127.0.0.1, Port: 3306, Database: Order_management_system, SQL: select * from `orders` where `orders`.`id` = 101 limit 1)  
