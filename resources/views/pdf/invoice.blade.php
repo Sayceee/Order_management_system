@@ -152,7 +152,7 @@
     <div class="qr-section">
         <p>Scan QR code to track your order:</p>
         <div class="qr-code">
-            <img src="data:image/png;base64,{{ $qrCode }}" width="100" height="100">
+            <img src="data:image/svg+xml;base64,{{ $qrCode }}" width="100" height="100">
         </div>
         <p style="font-size: 10px; color: #666;">Track your order at: {{ url('/track/' . $order['id']) }}</p>
     </div>
