@@ -2407,3 +2407,4 @@
 #52 C:/Users/faith/Order_management_system/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php(23): require_once('C://Users//faith//...')
 #53 {main}
 "} 
+[2026-02-25 09:19:34] local.ERROR: Invoice generation failed: Target class [dompdf.wrapper] does not exist.  
