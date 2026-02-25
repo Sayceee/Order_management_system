@@ -15,6 +15,7 @@
             <h3>Handmade Sweater</h3>
             <p>Price: KES 5,000</p>
             <form action="/api/orders" method="POST">
+                <input type="hidden" name="_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="product_name" value="Handmade Sweater">
                 <input type="hidden" name="amount" value="5000">
                 <input type="text" name="phone" placeholder="2547XXXXXXXX" required>
@@ -26,6 +27,7 @@
             <h3>Crochet Beanie</h3>
             <p>Price: KES 1,500</p>
             <form action="/api/orders" method="POST">
+                <input type="hidden" name="_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="product_name" value="Crochet Beanie">
                 <input type="hidden" name="amount" value="1500">
                 <input type="text" name="phone" placeholder="2547XXXXXXXX" required>
