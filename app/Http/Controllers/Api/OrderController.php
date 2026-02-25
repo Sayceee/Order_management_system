@@ -5,10 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
+use App\Http\Controllers\MpesaController; // Link to your M-Pesa logic
 
 class OrderController extends Controller
 {
-    // GET all orders - like index() in your PDF
+    // GET all orders
     public function index()
     {
         $orders = Order::with('payment')->get();
@@ -21,38 +22,36 @@ class OrderController extends Controller
         $order = Order::with('payment')->find($id);
         
         if (!$order) {
-            return response()->json([
-                'message' => 'Order not found'
-            ], 404);
+            return response()->json(['message' => 'Order not found'], 404);
         }
         
         return response()->json($order);
     }
     
-    // POST create new order - like store() in your PDF
+    // POST create new order - AUTOMATED FOR M-PESA
     public function store(Request $request)
     {
-        // Validate incoming data
+        // 1. Validate data from your storefront
         $request->validate([
-            'user_id' => 'required|string',
             'product_name' => 'required|string',
-            'quantity' => 'required|integer|min:1',
-            'amount' => 'required|numeric|min:0'
+            'amount' => 'required|numeric|min:1',
+            'phone' => 'required|string', // Needed for the STK Push
         ]);
         
-        // Create the order
+        // 2. Automatically save to the database
         $order = Order::create([
-            'user_id' => $request->user_id,
             'product_name' => $request->product_name,
-            'quantity' => $request->quantity,
             'amount' => $request->amount,
             'status' => 'pending'
         ]);
         
-        return response()->json([
-            'message' => 'Order created successfully',
-            'order' => $order
-        ], 201);
+        // 3. HAND-OFF TO M-PESA AUTOMATICALLY
+        // This triggers the STK push using the ID we just created
+        return app(MpesaController::class)->stkPush(new Request([
+            'order_id' => $order->id,
+            'amount'   => $order->amount,
+            'phone'    => $request->phone,
+        ]));
     }
     
     // PUT update order status
@@ -65,9 +64,7 @@ class OrderController extends Controller
         $order = Order::find($id);
         
         if (!$order) {
-            return response()->json([
-                'message' => 'Order not found'
-            ], 404);
+            return response()->json(['message' => 'Order not found'], 404);
         }
         
         $order->status = $request->status;
