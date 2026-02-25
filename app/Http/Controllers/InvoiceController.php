@@ -17,10 +17,9 @@ class InvoiceController extends Controller
             $order = Order::find($orderId);
 
             if (!$order) {
-                return response()->json([
-                    'error' => "Order #{$orderId} not found. Please create an order on the storefront first!"
-                ], 404);
-            }
+    
+    return view('tracking.not-found', ['order_id' => $orderId]);
+}
 
             $trackingUrl = url('/track/' . $orderId);
             // Size increased to 150 for better scanning on the PDF
