@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
-use App\Http\Controllers\MpesaController; // Link to your M-Pesa logic
+use App\Models\Payment;
+use App\Http\Controllers\MpesaController;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -28,37 +30,49 @@ class OrderController extends Controller
         return response()->json($order);
     }
     
-    // POST create new order - AUTOMATED FOR M-PESA
+    // POST create new order
     public function store(Request $request)
     {
-        // 1. Validate data from your storefront
-        $request->validate([
-            'product_name' => 'required|string',
-            'amount' => 'required|numeric|min:1',
-            'phone' => 'required|string', // Needed for the STK Push
-        ]);
-        
-        // 2. Automatically save to the database
-        $order = Order::create([
-            'product_name' => $request->product_name,
-            'amount' => $request->amount,
-            'status' => 'pending'
-        ]);
-        
-        // 3. HAND-OFF TO M-PESA AUTOMATICALLY
-        // This triggers the STK push using the ID we just created
-        return app(MpesaController::class)->stkPush(new Request([
-            'order_id' => $order->id,
-            'amount'   => $order->amount,
-            'phone'    => $request->phone,
-        ]));
+        try {
+            // Validate
+            $request->validate([
+                'product_name' => 'required|string',
+                'amount' => 'required|numeric',
+                'phone' => 'required|string',
+                'customer_name' => 'nullable|string'
+            ]);
+
+            // Create order
+            $order = Order::create([
+                'customer_name' => $request->customer_name ?? auth()->user()->name ?? 'Guest',
+                'product_name' => $request->product_name,
+                'quantity' => $request->quantity ?? 1,
+                'amount' => $request->amount * ($request->quantity ?? 1),
+                'status' => 'pending',
+                'user_id' => auth()->id(),
+            ]);
+
+            Log::info('Order created: ' . $order->id);
+
+            // Call M-Pesa
+            $mpesaController = new MpesaController();
+            return $mpesaController->stkPush(new Request([
+                'order_id' => $order->id,
+                'amount' => $order->amount,
+                'phone' => $request->phone,
+            ]));
+            
+        } catch (\Exception $e) {
+            Log::error('Order creation failed: ' . $e->getMessage());
+            return back()->withErrors(['message' => 'Failed to create order: ' . $e->getMessage()]);
+        }
     }
     
     // PUT update order status
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:pending,paid'
+            'status' => 'required|string|in:pending,paid,failed'
         ]);
         
         $order = Order::find($id);

@@ -10,14 +10,14 @@ class Order extends Model
     use HasFactory;
     
     protected $fillable = [
-        'user_id',
-        'product_name',
-        'quantity',
-        'amount',
-        'status'
+        'product_name', 
+        'amount', 
+        'status', 
+        'quantity', 
+        'customer_name', 
+        'user_id'
     ];
     
-    // An order has one payment
     public function payment()
     {
         return $this->hasOne(Payment::class);

@@ -10,6 +10,7 @@ class RouteServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
+    public const HOME = '/marketplace';
     public function boot(): void
     {
         // Load API routes with /api prefix

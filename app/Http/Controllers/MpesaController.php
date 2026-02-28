@@ -29,17 +29,25 @@ class MpesaController extends Controller
     }
 
     public function stkPush(Request $request)
-    {
+{
+    try {
         $data = $request->validate([
-            'order_id' => ['required'],
-            'phone' => ['required', 'string'],
-            'amount' => ['required', 'numeric', 'min:1'],
+            'order_id' => 'required',
+            'phone' => 'required|string',
+            'amount' => 'required|numeric|min:1',
         ]);
 
+        \Log::info('STK Push initiated', $data);
+
         $timestamp = now()->format('YmdHis');
-        $shortcode = env('MPESA_SHORTCODE');
-        $passkey = env('MPESA_PASSKEY');
+        $shortcode = env('MPESA_SHORTCODE', '174379');
+        $passkey = env('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919');
         $password = base64_encode($shortcode . $passkey . $timestamp);
+
+        // Format phone number (remove 0 or +254)
+        $phone = $data['phone'];
+        $phone = preg_replace('/^0/', '254', $phone);
+        $phone = preg_replace('/^\+/', '', $phone);
 
         $payload = [
             "BusinessShortCode" => $shortcode,
@@ -47,13 +55,15 @@ class MpesaController extends Controller
             "Timestamp" => $timestamp,
             "TransactionType" => "CustomerPayBillOnline",
             "Amount" => (int)$data['amount'],
-            "PartyA" => $data['phone'],
+            "PartyA" => $phone,
             "PartyB" => $shortcode,
-            "PhoneNumber" => $data['phone'],
-            "CallBackURL" => env('MPESA_CALLBACK_URL'),
+            "PhoneNumber" => $phone,
+            "CallBackURL" => env('MPESA_CALLBACK_URL', 'https://your-domain.com/mpesa/callback'),
             "AccountReference" => "ORDER-" . $data['order_id'],
             "TransactionDesc" => "Order Payment",
         ];
+
+        \Log::info('M-Pesa Payload', $payload);
 
         $res = Http::withoutVerifying()
             ->withToken($this->accessToken())
@@ -61,6 +71,7 @@ class MpesaController extends Controller
             ->post($this->baseUrl() . '/mpesa/stkpush/v1/processrequest', $payload);
 
         $response = $res->json();
+        \Log::info('M-Pesa Response', $response);
         
         if (($response['ResponseCode'] ?? null) === "0") {
             Payment::create([
@@ -68,34 +79,40 @@ class MpesaController extends Controller
                 'merchant_request_id' => $response['MerchantRequestID'] ?? null,
                 'checkout_request_id' => $response['CheckoutRequestID'],
                 'amount' => (float) $data['amount'],
-                'phone' => $data['phone'],
+                'phone' => $phone,
                 'status' => 'pending',
             ]);
 
-            // REDIRECT TO SUCCESS PAGE
             return redirect()->route('order.success', ['order_id' => $data['order_id']])
-                             ->with('message', 'STK Push sent! Please check your phone.');
+                ->with('success', 'STK Push sent! Please check your phone.');
         }
 
-        return back()->withErrors(['message' => 'M-Pesa request failed.']);
-    } // <--- THIS WAS THE MISSING BRACE
+        return redirect()->route('cart.index')
+            ->with('error', 'M-Pesa request failed. Please try again.');
+        
+    } catch (\Exception $e) {
+        \Log::error('STK Push failed: ' . $e->getMessage());
+        return redirect()->route('cart.index')
+            ->with('error', 'Payment failed: ' . $e->getMessage());
+    }
+}
 
-  public function callback(Request $request)
+    public function callback(Request $request)
     {
         $payload = $request->all();
-        Log::info('MPESA_CALLBACK_RAW', $payload);
+        Log::info('MPESA_CALLBACK', $payload);
 
         $stk = data_get($payload, 'Body.stkCallback');
         $resultCode = data_get($stk, 'ResultCode');
         $resultDesc = data_get($stk, 'ResultDesc');
-        $checkoutId  = data_get($stk, 'CheckoutRequestID');
+        $checkoutId = data_get($stk, 'CheckoutRequestID');
 
         $items = collect(data_get($stk, 'CallbackMetadata.Item', []))
             ->mapWithKeys(fn($i) => [data_get($i, 'Name') => data_get($i, 'Value')]);
 
-        $amount   = $items->get('Amount');
-        $receipt  = $items->get('MpesaReceiptNumber');
-        $phone    = $items->get('PhoneNumber');
+        $amount = $items->get('Amount');
+        $receipt = $items->get('MpesaReceiptNumber');
+        $phone = $items->get('PhoneNumber');
 
         $payment = Payment::where('checkout_request_id', $checkoutId)->first();
         
@@ -105,8 +122,8 @@ class MpesaController extends Controller
                 'result_code' => (int) $resultCode,
                 'result_desc' => $resultDesc,
                 'mpesa_receipt' => $receipt,
-                'amount' => $amount,
-                'phone' => $phone,
+                'amount' => $amount ?? $payment->amount,
+                'phone' => $phone ?? $payment->phone,
                 'raw_callback' => $payload,
             ]);
 
@@ -114,15 +131,7 @@ class MpesaController extends Controller
                 $order = Order::find($payment->order_id);
                 if ($order) {
                     $order->update(['status' => 'paid']);
-
-                    try {
-                        Http::post('http://localhost:3000/api/sms/send', [
-                            'to' => $phone,
-                            'message' => "Payment Verified! KES $amount received for Order #{$order->id}. Track here: " . url("/track/{$order->id}")
-                        ]);
-                    } catch (\Exception $e) {
-                        Log::error('SMS Trigger Failed: ' . $e->getMessage());
-                    }
+                    Log::info('Order ' . $order->id . ' marked as paid');
                 }
             }
         }

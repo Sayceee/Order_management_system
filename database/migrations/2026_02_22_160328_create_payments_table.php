@@ -13,20 +13,23 @@ return new class extends Migration
     {
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
-            // Connects this payment directly to the Order ID
-            $table->foreignId('order_id')->constrained()->onDelete('cascade');
+            // Fix: Make sure it references the correct table and column
+            $table->foreignId('order_id')
+                  ->constrained('orders') // Explicitly reference orders table
+                  ->onDelete('cascade');
             $table->string('merchant_request_id')->nullable();
-            $table->string('checkout_request_id')->unique();
+            $table->string('checkout_request_id')->nullable(); // Remove unique for now
             $table->string('mpesa_receipt')->nullable();
             $table->decimal('amount', 10, 2);
             $table->string('phone');
-            $table->string('status')->default('pending'); // pending|paid|failed
+            $table->string('status')->default('pending');
             $table->integer('result_code')->nullable();
             $table->text('result_desc')->nullable();
             $table->json('raw_callback')->nullable();
             $table->timestamps();
         });
     }
+    
     /**
      * Reverse the migrations.
      */
